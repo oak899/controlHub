@@ -21,11 +21,13 @@ function App() {
   const [error, setError] = useState(null)
   const [timeRange, setTimeRange] = useState('1h')
   const [contentFilter, setContentFilter] = useState('')
+  const [topicFilter, setTopicFilter] = useState('')
+  const [formatJson, setFormatJson] = useState(false)
   const [database, setDatabase] = useState('clickhouse')
   const [selectedMenu, setSelectedMenu] = useState('events')
 
   const fetchEvents = async () => {
-    console.log('[Frontend] Fetching events...', { database, timeRange, contentFilter })
+    console.log('[Frontend] Fetching events...', { database, timeRange, contentFilter, topicFilter })
     setLoading(true)
     setError(null)
     const startTime = Date.now()
@@ -38,6 +40,9 @@ function App() {
       }
       if (contentFilter.trim()) {
         params.content = contentFilter.trim()
+      }
+      if (topicFilter.trim()) {
+        params.topic = topicFilter.trim()
       }
       if (database) {
         params.database = database
@@ -80,7 +85,7 @@ function App() {
       }
     }
     checkHealth()
-  }, [timeRange, database])
+  }, [timeRange, database, topicFilter])
   
   useEffect(() => {
     console.log('[Frontend] Component mounted')
@@ -93,6 +98,24 @@ function App() {
     e.preventDefault()
     console.log('[Frontend] Content filter submitted:', contentFilter)
     fetchEvents()
+  }
+
+  const handleTopicFilterSubmit = (e) => {
+    e.preventDefault()
+    console.log('[Frontend] Topic filter submitted:', topicFilter)
+    fetchEvents()
+  }
+
+  const formatStructured = (structured) => {
+    if (!structured) return '-'
+    if (!formatJson) return structured
+    
+    try {
+      const parsed = JSON.parse(structured)
+      return JSON.stringify(parsed, null, 2)
+    } catch (e) {
+      return structured
+    }
   }
 
   const formatTimestamp = (timestamp) => {
@@ -198,6 +221,31 @@ function App() {
               </button>
             </form>
 
+            <form onSubmit={handleTopicFilterSubmit} className="filter-group">
+              <label>Topic Filter:</label>
+              <input
+                type="text"
+                value={topicFilter}
+                onChange={(e) => setTopicFilter(e.target.value)}
+                placeholder="Filter by topic..."
+                className="filter-input"
+              />
+              <button type="submit" className="filter-button">
+                Search
+              </button>
+            </form>
+
+            <div className="filter-group">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={formatJson}
+                  onChange={(e) => setFormatJson(e.target.checked)}
+                />
+                Format JSON
+              </label>
+            </div>
+
             <button onClick={fetchEvents} className="refresh-button" disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </button>
@@ -230,12 +278,16 @@ function App() {
                   <tbody>
                     {events.map((event, index) => (
                       <tr key={`${event.timestamp}-${index}`}>
-                        <td>{formatTimestamp(event.timestamp)}</td>
-                        <td>{event.tool}</td>
-                        <td>{event.topic}</td>
+                        <td className="td-timestamp">{formatTimestamp(event.timestamp)}</td>
+                        <td className="td-tool" title={event.tool || ''}>
+                          {event.tool ? (event.tool.length > 8 ? event.tool.substring(0, 8) + '...' : event.tool) : '-'}
+                        </td>
+                        <td className="td-topic" title={event.topic || ''}>
+                          {event.topic || '-'}
+                        </td>
                         <td className="td-structured">
-                          <div className="structured-content">
-                            {event.structured || '-'}
+                          <div className={`structured-content ${formatJson ? 'json-formatted' : ''}`}>
+                            {formatStructured(event.structured)}
                           </div>
                         </td>
                       </tr>

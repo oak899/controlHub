@@ -26,6 +26,7 @@ type Event struct {
 type QueryParams struct {
 	TimeRange string `form:"timeRange" json:"timeRange"` // 1m, 5m, 20m, 1h, 5h, 1d, 1w, 1mo
 	Content   string `form:"content" json:"content"`     // filter content in structured field
+	Topic     string `form:"topic" json:"topic"`         // filter by topic
 	Database  string `form:"database" json:"database"`   // clickhouse or postgresql
 	Limit     int    `form:"limit" json:"limit"`         // default 100
 	Offset    int    `form:"offset" json:"offset"`       // default 0
@@ -158,8 +159,8 @@ func getEvents(c *gin.Context) {
 		params.Database = "clickhouse"
 	}
 
-	log.Printf("[QUERY] Database: %s, TimeRange: %s, ContentFilter: %s, Limit: %d, Offset: %d",
-		params.Database, params.TimeRange, params.Content, params.Limit, params.Offset)
+	log.Printf("[QUERY] Database: %s, TimeRange: %s, ContentFilter: %s, TopicFilter: %s, Limit: %d, Offset: %d",
+		params.Database, params.TimeRange, params.Content, params.Topic, params.Limit, params.Offset)
 
 	var events []Event
 	var err error
@@ -188,7 +189,7 @@ func getEvents(c *gin.Context) {
 }
 
 func queryClickHouse(params QueryParams) ([]Event, error) {
-	log.Printf("[ClickHouse] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
+	log.Printf("[ClickHouse] Starting query with timeRange=%s, content=%s, topic=%s", params.TimeRange, params.Content, params.Topic)
 	ctx := context.Background()
 
 	query := `SELECT timestamp, tool, topic, structured FROM events WHERE 1=1`
@@ -226,6 +227,12 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 	if params.Content != "" {
 		query += " AND structured LIKE ?"
 		args = append(args, "%"+params.Content+"%")
+	}
+
+	// Add topic filter
+	if params.Topic != "" {
+		query += " AND topic LIKE ?"
+		args = append(args, "%"+params.Topic+"%")
 	}
 
 	// LIMIT and OFFSET in ClickHouse are safe to use with fmt.Sprintf as they're validated integers
@@ -269,7 +276,7 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 }
 
 func queryPostgreSQL(params QueryParams) ([]Event, error) {
-	log.Printf("[PostgreSQL] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
+	log.Printf("[PostgreSQL] Starting query with timeRange=%s, content=%s, topic=%s", params.TimeRange, params.Content, params.Topic)
 	// Convert jsonb to text in SELECT to handle jsonb type properly
 	query := `SELECT timestamp, tool, topic, structured::text FROM events WHERE 1=1`
 
@@ -308,6 +315,13 @@ func queryPostgreSQL(params QueryParams) ([]Event, error) {
 	if params.Content != "" {
 		query += fmt.Sprintf(" AND structured::text LIKE $%d", argIndex)
 		args = append(args, "%"+params.Content+"%")
+		argIndex++
+	}
+
+	// Add topic filter
+	if params.Topic != "" {
+		query += fmt.Sprintf(" AND topic LIKE $%d", argIndex)
+		args = append(args, "%"+params.Topic+"%")
 		argIndex++
 	}
 
