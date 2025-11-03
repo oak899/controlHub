@@ -193,7 +193,8 @@
   min-width: 250px;
 }
 
-.refresh-button {
+.refresh-button,
+.share-button {
   padding: 0.5rem 1rem;
   background: #667eea;
   color: white;
@@ -210,13 +211,22 @@
   justify-content: center;
 }
 
-.refresh-button:hover:not(:disabled) {
+.refresh-button:hover:not(:disabled),
+.share-button:hover {
   background: #5568d3;
 }
 
 .refresh-button:disabled {
   background: #a0aec0;
   cursor: not-allowed;
+}
+
+.share-button {
+  background: #48bb78;
+}
+
+.share-button:hover {
+  background: #38a169;
 }
 
 .filter-info {

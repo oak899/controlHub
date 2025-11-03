@@ -213,10 +213,10 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 		if err != nil {
 			log.Printf("[ClickHouse] Failed to parse exact time '%s': %v", params.ExactTime, err)
 		} else {
-			// Search for exact time (match the specific second)
-			query += " AND timestamp >= ? AND timestamp < ?"
-			args = append(args, exactTime, exactTime.Add(1*time.Second))
-			log.Printf("[ClickHouse] Searching for exact time: %v", exactTime)
+			// Search for exact time and earlier (<= exactTime)
+			query += " AND timestamp <= ?"
+			args = append(args, exactTime)
+			log.Printf("[ClickHouse] Searching for exact time and earlier: %v", exactTime)
 		}
 	} else if params.TimeRange != "" {
 		var duration time.Duration
@@ -320,11 +320,11 @@ func queryPostgreSQL(params QueryParams) ([]Event, error) {
 		if err != nil {
 			log.Printf("[PostgreSQL] Failed to parse exact time '%s': %v", params.ExactTime, err)
 		} else {
-			// Search for exact time (match the specific second)
-			query += fmt.Sprintf(" AND timestamp >= $%d AND timestamp < $%d", argIndex, argIndex+1)
-			args = append(args, exactTime, exactTime.Add(1*time.Second))
-			argIndex += 2
-			log.Printf("[PostgreSQL] Searching for exact time: %v", exactTime)
+			// Search for exact time and earlier (<= exactTime)
+			query += fmt.Sprintf(" AND timestamp <= $%d", argIndex)
+			args = append(args, exactTime)
+			argIndex++
+			log.Printf("[PostgreSQL] Searching for exact time and earlier: %v", exactTime)
 		}
 	} else if params.TimeRange != "" {
 		var duration time.Duration

@@ -16,21 +16,80 @@ const timeRanges = [
 ]
 
 function App() {
+  // Initialize state from URL parameters
+  const getUrlParams = () => {
+    const params = new URLSearchParams(window.location.search)
+    return {
+      timeRange: params.get('timeRange') || '1h',
+      exactTime: params.get('exactTime') || '',
+      useExactTime: params.get('useExactTime') === 'true',
+      contentFilter: params.get('content') || '',
+      topicFilter: params.get('topic') || '',
+      formatJson: params.get('formatJson') === 'true',
+      database: params.get('database') || 'clickhouse',
+    }
+  }
+
+  const urlParams = getUrlParams()
+
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
-  const [timeRange, setTimeRange] = useState('1h')
-  const [exactTime, setExactTime] = useState('')
-  const [useExactTime, setUseExactTime] = useState(false)
-  const [contentFilter, setContentFilter] = useState('')
-  const [topicFilter, setTopicFilter] = useState('')
-  const [formatJson, setFormatJson] = useState(false)
-  const [database, setDatabase] = useState('clickhouse')
+  const [timeRange, setTimeRange] = useState(urlParams.timeRange)
+  const [exactTime, setExactTime] = useState(urlParams.exactTime)
+  const [useExactTime, setUseExactTime] = useState(urlParams.useExactTime)
+  const [contentFilter, setContentFilter] = useState(urlParams.contentFilter)
+  const [topicFilter, setTopicFilter] = useState(urlParams.topicFilter)
+  const [formatJson, setFormatJson] = useState(urlParams.formatJson)
+  const [database, setDatabase] = useState(urlParams.database)
   const [selectedMenu, setSelectedMenu] = useState('events')
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const eventsContainerRef = useRef(null)
+
+  const isInitialMount = useRef(true)
+
+  // Update URL when filters change (but not on initial mount)
+  const updateURL = useCallback(() => {
+    // Skip URL update on initial mount to avoid overriding URL params
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    const params = new URLSearchParams()
+    
+    if (!useExactTime && timeRange && timeRange !== '1h') {
+      params.set('timeRange', timeRange)
+    }
+    if (useExactTime && exactTime) {
+      params.set('exactTime', exactTime)
+      params.set('useExactTime', 'true')
+    }
+    if (contentFilter) {
+      params.set('content', contentFilter)
+    }
+    if (topicFilter) {
+      params.set('topic', topicFilter)
+    }
+    if (formatJson) {
+      params.set('formatJson', 'true')
+    }
+    if (database && database !== 'clickhouse') {
+      params.set('database', database)
+    }
+
+    const newURL = params.toString() 
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+    
+    // Only update if URL actually changed
+    if (newURL !== window.location.pathname + window.location.search) {
+      window.history.replaceState({}, '', newURL)
+      console.log('[Frontend] URL updated:', newURL)
+    }
+  }, [timeRange, exactTime, useExactTime, contentFilter, topicFilter, formatJson, database])
 
   const fetchEvents = async (append = false, currentOffset = 0) => {
     console.log('[Frontend] Fetching events...', { database, timeRange, exactTime, useExactTime, contentFilter, topicFilter, offset: currentOffset, append })
@@ -182,6 +241,11 @@ function App() {
       return () => scrollElement.removeEventListener('scroll', handleScroll)
     }
   }, [loadMore])
+
+  // Update URL when filters change
+  useEffect(() => {
+    updateURL()
+  }, [updateURL])
 
   useEffect(() => {
     console.log('[Frontend] Component mounted or dependencies changed')
@@ -392,9 +456,27 @@ function App() {
             <button onClick={() => fetchEvents(false, 0)} className="refresh-button" disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </button>
-            <div className="filter-info">
-              <small>Filters auto-apply or click Refresh to reload</small>
-            </div>
+            <button 
+              onClick={() => {
+                const url = window.location.href
+                navigator.clipboard.writeText(url).then(() => {
+                  alert('URL copied to clipboard!')
+                }).catch(() => {
+                  // Fallback for older browsers
+                  const textArea = document.createElement('textarea')
+                  textArea.value = url
+                  document.body.appendChild(textArea)
+                  textArea.select()
+                  document.execCommand('copy')
+                  document.body.removeChild(textArea)
+                  alert('URL copied to clipboard!')
+                })
+              }}
+              className="share-button"
+              title="Copy shareable URL"
+            >
+              Share
+            </button>
           </div>
 
           {/* Error Display */}
