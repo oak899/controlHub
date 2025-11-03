@@ -278,7 +278,8 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 
 func queryPostgreSQL(params QueryParams) ([]Event, error) {
 	log.Printf("[PostgreSQL] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
-	query := `SELECT id, timestamp, shard, seq, tool, topic, structured, __genlog__ FROM events WHERE 1=1`
+	// Convert jsonb to text in SELECT to handle jsonb type properly
+	query := `SELECT id, timestamp, shard, seq, tool, topic, structured::text, __genlog__ FROM events WHERE 1=1`
 
 	args := []interface{}{}
 	argIndex := 1
@@ -311,9 +312,9 @@ func queryPostgreSQL(params QueryParams) ([]Event, error) {
 		argIndex++
 	}
 
-	// Add content filter
+	// Add content filter - convert jsonb to text for LIKE search
 	if params.Content != "" {
-		query += fmt.Sprintf(" AND structured LIKE $%d", argIndex)
+		query += fmt.Sprintf(" AND structured::text LIKE $%d", argIndex)
 		args = append(args, "%"+params.Content+"%")
 		argIndex++
 	}
