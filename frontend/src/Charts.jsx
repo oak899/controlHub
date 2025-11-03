@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import {
   LineChart,
@@ -36,6 +36,9 @@ function Charts() {
   const [selectedFields, setSelectedFields] = useState([])
   const [chartData, setChartData] = useState([])
   const [fieldSearch, setFieldSearch] = useState('')
+  const [fieldSelectorHeight, setFieldSelectorHeight] = useState(200) // Default height in pixels
+  const isResizing = useRef(false)
+  const fieldSelectorRef = useRef(null)
 
   const fetchEvents = async () => {
     if (!topicFilter.trim()) {
@@ -280,6 +283,49 @@ function Charts() {
     field.toLowerCase().includes(fieldSearch.toLowerCase())
   )
 
+  // Handle resizing
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing.current) return
+      
+      const container = fieldSelectorRef.current?.closest('.charts-content-container')
+      if (!container) return
+      
+      const containerRect = container.getBoundingClientRect()
+      const newHeight = e.clientY - containerRect.top
+      const minHeight = 100
+      const maxHeight = containerRect.height * 0.8
+      
+      setFieldSelectorHeight(Math.max(minHeight, Math.min(maxHeight, newHeight)))
+    }
+
+    const handleMouseUp = () => {
+      if (isResizing.current) {
+        isResizing.current = false
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+    }
+
+    // Always attach listeners, but only act if isResizing is true
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [])
+
+  const handleResizeStart = (e) => {
+    e.preventDefault()
+    isResizing.current = true
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+  }
+
   const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042']
 
   return (
@@ -339,78 +385,93 @@ function Charts() {
         </div>
       )}
 
-      {availableFields.length > 0 && (
-        <div className="field-selector">
-          <div className="field-selector-header">
-            <label>Select Fields to Plot ({availableFields.length} available):</label>
-            <input
-              type="text"
-              placeholder="Search fields..."
-              value={fieldSearch}
-              onChange={(e) => setFieldSearch(e.target.value)}
-              className="field-search-input"
-            />
-          </div>
-          <div className="field-checkboxes-container">
-            <div className="field-checkboxes">
-              {filteredFields.length > 0 ? (
-                filteredFields.map((field) => (
-                  <label key={field} className={`field-checkbox ${selectedFields.includes(field) ? 'checked' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={selectedFields.includes(field)}
-                      onChange={() => handleFieldToggle(field)}
-                    />
-                    <span>{field}</span>
-                  </label>
-                ))
-              ) : (
-                <div className="no-fields-found">No fields match your search</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="loading">Loading chart data...</div>
-      )}
-
-      {chartData.length > 0 && selectedFields.length > 0 ? (
-        <div className="chart-container">
-          <ResponsiveContainer width="100%" height={500}>
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="time" 
-                angle={-45}
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              {selectedFields.map((field, index) => (
-                <Line
-                  key={field}
-                  type="monotone"
-                  dataKey={field}
-                  stroke={colors[index % colors.length]}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
+      <div className="charts-content-container">
+        {availableFields.length > 0 && (
+          <>
+            <div 
+              className="field-selector"
+              ref={fieldSelectorRef}
+              style={{ height: `${fieldSelectorHeight}px` }}
+            >
+              <div className="field-selector-header">
+                <label>Select Fields to Plot ({availableFields.length} available):</label>
+                <input
+                  type="text"
+                  placeholder="Search fields..."
+                  value={fieldSearch}
+                  onChange={(e) => setFieldSearch(e.target.value)}
+                  className="field-search-input"
                 />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      ) : events.length > 0 && selectedFields.length === 0 ? (
-        <div className="empty-state">Please select at least one field to plot</div>
-      ) : events.length === 0 && !loading ? (
-        <div className="empty-state">
-          Enter a topic filter and click "Load Data" to view charts
-        </div>
-      ) : null}
+              </div>
+              <div className="field-checkboxes-container">
+                <div className="field-checkboxes">
+                  {filteredFields.length > 0 ? (
+                    filteredFields.map((field) => (
+                      <label key={field} className={`field-checkbox ${selectedFields.includes(field) ? 'checked' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedFields.includes(field)}
+                          onChange={() => handleFieldToggle(field)}
+                        />
+                        <span>{field}</span>
+                      </label>
+                    ))
+                  ) : (
+                    <div className="no-fields-found">No fields match your search</div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div 
+              className="resizer"
+              onMouseDown={handleResizeStart}
+              title="Drag to resize"
+            >
+              <div className="resizer-handle"></div>
+            </div>
+          </>
+        )}
+
+        {loading && (
+          <div className="loading">Loading chart data...</div>
+        )}
+
+        {chartData.length > 0 && selectedFields.length > 0 ? (
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="time" 
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {selectedFields.map((field, index) => (
+                  <Line
+                    key={field}
+                    type="monotone"
+                    dataKey={field}
+                    stroke={colors[index % colors.length]}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : events.length > 0 && selectedFields.length === 0 ? (
+          <div className="empty-state">Please select at least one field to plot</div>
+        ) : events.length === 0 && !loading ? (
+          <div className="empty-state">
+            Enter a topic filter and click "Load Data" to view charts
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }

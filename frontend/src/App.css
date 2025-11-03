@@ -292,11 +292,25 @@
   height: 100%;
 }
 
+.charts-content-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+}
+
 .field-selector {
   background: white;
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 8px 8px 0 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  resize: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 100px;
+  max-height: 80vh;
 }
 
 .field-selector-header {
@@ -323,11 +337,13 @@
 }
 
 .field-checkboxes-container {
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   padding: 0.5rem;
+  min-height: 0;
 }
 
 .field-checkboxes {
@@ -372,13 +388,44 @@
   cursor: pointer;
 }
 
+.resizer {
+  height: 8px;
+  background: #e2e8f0;
+  cursor: row-resize;
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.resizer:hover {
+  background: #cbd5e0;
+}
+
+.resizer-handle {
+  width: 40px;
+  height: 4px;
+  background: #a0aec0;
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+
+.resizer:hover .resizer-handle {
+  background: #718096;
+}
+
 .chart-container {
   background: white;
   padding: 1.5rem;
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   flex: 1;
-  min-height: 500px;
+  min-height: 300px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Events Container */
