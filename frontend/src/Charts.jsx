@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import axios from 'axios'
 import {
   LineChart,
@@ -39,6 +39,7 @@ function Charts() {
   const [fieldSelectorHeight, setFieldSelectorHeight] = useState(200) // Default height in pixels
   const isResizing = useRef(false)
   const fieldSelectorRef = useRef(null)
+  const isInitialMount = useRef(true)
 
   const fetchEvents = async () => {
     if (!topicFilter.trim()) {
@@ -79,6 +80,44 @@ function Charts() {
     }
   }
 
+  // Update URL when filters change
+  const updateURL = useCallback(() => {
+    // Skip URL update on initial mount to avoid overriding URL params
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    const params = new URLSearchParams()
+    
+    if (timeRange && timeRange !== '1h') {
+      params.set('timeRange', timeRange)
+    }
+    if (topicFilter) {
+      params.set('topic', topicFilter)
+    }
+    if (database && database !== 'clickhouse') {
+      params.set('database', database)
+    }
+    if (selectedFields.length > 0) {
+      params.set('fields', selectedFields.join(','))
+    }
+
+    const newURL = params.toString() 
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+    
+    // Only update if URL actually changed
+    if (newURL !== window.location.pathname + window.location.search) {
+      window.history.replaceState({}, '', newURL)
+      console.log('[Charts] URL updated:', newURL)
+    }
+  }, [timeRange, topicFilter, database, selectedFields])
+
+  useEffect(() => {
+    updateURL()
+  }, [updateURL])
+
   useEffect(() => {
     const loadFromURL = () => {
       const params = new URLSearchParams(window.location.search)
@@ -87,12 +126,17 @@ function Charts() {
       const urlUseExactTime = params.get('useExactTime') === 'true'
       const urlTopic = params.get('topic')
       const urlDatabase = params.get('database')
+      const urlFields = params.get('fields')
       
       if (urlTimeRange) setTimeRange(urlTimeRange)
       if (urlTopic) {
         setTopicFilter(urlTopic)
       }
       if (urlDatabase) setDatabase(urlDatabase)
+      if (urlFields) {
+        const fields = urlFields.split(',').filter(f => f.trim())
+        setSelectedFields(fields)
+      }
     }
 
     loadFromURL()
@@ -121,10 +165,18 @@ function Charts() {
   }, [topicFilter])
   
   useEffect(() => {
-    if (events.length > 0 && selectedFields.length === 0 && availableFields.length > 0) {
+    // Check if selectedFields from URL are valid
+    if (availableFields.length > 0 && selectedFields.length > 0) {
+      const validFields = selectedFields.filter(field => availableFields.includes(field))
+      if (validFields.length !== selectedFields.length) {
+        // Some fields are invalid, update to only valid ones
+        setSelectedFields(validFields.length > 0 ? validFields : [availableFields[0]])
+      }
+    } else if (events.length > 0 && selectedFields.length === 0 && availableFields.length > 0) {
+      // No fields selected, auto-select first one
       setSelectedFields([availableFields[0]])
     }
-  }, [events, availableFields, selectedFields.length])
+  }, [events, availableFields, selectedFields])
 
   // Recursively extract all numeric fields from nested JSON
   const extractNestedFields = (obj, prefix = '', fieldSet = new Set()) => {
@@ -376,6 +428,27 @@ function Charts() {
 
         <button onClick={fetchEvents} className="refresh-button" disabled={loading}>
           {loading ? 'Loading...' : 'Load Data'}
+        </button>
+        <button 
+          onClick={() => {
+            const url = window.location.href
+            navigator.clipboard.writeText(url).then(() => {
+              alert('Chart URL copied to clipboard!')
+            }).catch(() => {
+              // Fallback for older browsers
+              const textArea = document.createElement('textarea')
+              textArea.value = url
+              document.body.appendChild(textArea)
+              textArea.select()
+              document.execCommand('copy')
+              document.body.removeChild(textArea)
+              alert('Chart URL copied to clipboard!')
+            })
+          }}
+          className="share-button"
+          title="Copy shareable URL"
+        >
+          Share
         </button>
       </div>
 
