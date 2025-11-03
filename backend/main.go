@@ -27,11 +27,11 @@ type Event struct {
 }
 
 type QueryParams struct {
-	TimeRange  string `form:"timeRange" json:"timeRange"`   // 1m, 5m, 20m, 1h, 5h, 1d, 1w, 1mo
-	Content    string `form:"content" json:"content"`       // filter content in structured field
-	Database   string `form:"database" json:"database"`     // clickhouse or postgresql
-	Limit      int    `form:"limit" json:"limit"`           // default 100
-	Offset     int    `form:"offset" json:"offset"`         // default 0
+	TimeRange string `form:"timeRange" json:"timeRange"` // 1m, 5m, 20m, 1h, 5h, 1d, 1w, 1mo
+	Content   string `form:"content" json:"content"`     // filter content in structured field
+	Database  string `form:"database" json:"database"`   // clickhouse or postgresql
+	Limit     int    `form:"limit" json:"limit"`         // default 100
+	Offset    int    `form:"offset" json:"offset"`       // default 0
 }
 
 var clickhouseConn driver.Conn
@@ -74,6 +74,20 @@ func main() {
 	// Setup Gin router
 	r := gin.Default()
 
+	// Add logging middleware
+	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		return fmt.Sprintf("[%s] %s %s %d %s \"%s\" %s\n",
+			param.TimeStamp.Format("2006-01-02 15:04:05"),
+			param.ClientIP,
+			param.Method,
+			param.StatusCode,
+			param.Latency,
+			param.Path,
+			param.ErrorMessage,
+		)
+	}))
+	r.Use(gin.Recovery())
+
 	// CORS middleware
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
@@ -84,6 +98,13 @@ func main() {
 	// API routes
 	api := r.Group("/api")
 	{
+		// Health check endpoint
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{
+				"status":    "ok",
+				"timestamp": time.Now(),
+			})
+		})
 		api.GET("/events", getEvents)
 		api.GET("/stats", getStats)
 	}
@@ -98,10 +119,9 @@ func main() {
 	}
 }
 
-
 func getEvents(c *gin.Context) {
 	log.Printf("[API] GET /api/events - Client IP: %s", c.ClientIP())
-	
+
 	var params QueryParams
 	if err := c.ShouldBindQuery(&params); err != nil {
 		log.Printf("[ERROR] Failed to bind query parameters: %v", err)
@@ -324,4 +344,3 @@ func getStats(c *gin.Context) {
 		"postgresql": "connected",
 	})
 }
-

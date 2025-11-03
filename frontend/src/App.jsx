@@ -44,7 +44,13 @@ function App() {
       }
 
       console.log('[Frontend] API request params:', params)
-      const response = await axios.get(`${API_BASE_URL}/events`, { params })
+      const response = await axios.get(`${API_BASE_URL}/events`, { 
+        params,
+        timeout: 30000, // 30 second timeout
+        validateStatus: function (status) {
+          return status < 500; // Resolve only if the status code is less than 500
+        }
+      })
       const duration = Date.now() - startTime
       console.log(`[Frontend] Received ${response.data.events?.length || 0} events in ${duration}ms`)
       setEvents(response.data.events || [])
@@ -61,7 +67,19 @@ function App() {
 
   useEffect(() => {
     console.log('[Frontend] Component mounted or dependencies changed')
-    fetchEvents()
+    // Check backend health first
+    const checkHealth = async () => {
+      try {
+        const healthResponse = await axios.get('/api/health', { timeout: 5000 })
+        console.log('[Frontend] Backend health check:', healthResponse.data)
+        fetchEvents()
+      } catch (err) {
+        console.error('[Frontend] Backend health check failed:', err.message)
+        setError(`Cannot connect to backend server. Please ensure the backend is running on port 7890. Error: ${err.message}`)
+        setLoading(false)
+      }
+    }
+    checkHealth()
   }, [timeRange, database])
   
   useEffect(() => {
