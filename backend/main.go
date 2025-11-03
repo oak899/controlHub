@@ -17,14 +17,10 @@ import (
 )
 
 type Event struct {
-	ID         string    `json:"id"`
 	Timestamp  time.Time `json:"timestamp"`
-	Shard      int16     `json:"shard"`
-	Seq        int32     `json:"seq"`
 	Tool       string    `json:"tool"`
 	Topic      string    `json:"topic"`
 	Structured string    `json:"structured"`
-	Genlog     string    `json:"__genlog__"`
 }
 
 type QueryParams struct {
@@ -195,7 +191,7 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 	log.Printf("[ClickHouse] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
 	ctx := context.Background()
 
-	query := `SELECT id, timestamp, shard, seq, tool, topic, structured, __genlog__ FROM events WHERE 1=1`
+	query := `SELECT timestamp, tool, topic, structured FROM events WHERE 1=1`
 
 	args := []interface{}{}
 
@@ -256,14 +252,10 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 	for rows.Next() {
 		var event Event
 		if err := rows.Scan(
-			&event.ID,
 			&event.Timestamp,
-			&event.Shard,
-			&event.Seq,
 			&event.Tool,
 			&event.Topic,
 			&event.Structured,
-			&event.Genlog,
 		); err != nil {
 			log.Printf("[ClickHouse] Row scan error: %v", err)
 			return nil, err
@@ -279,7 +271,7 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 func queryPostgreSQL(params QueryParams) ([]Event, error) {
 	log.Printf("[PostgreSQL] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
 	// Convert jsonb to text in SELECT to handle jsonb type properly
-	query := `SELECT id, timestamp, shard, seq, tool, topic, structured::text, __genlog__ FROM events WHERE 1=1`
+	query := `SELECT timestamp, tool, topic, structured::text FROM events WHERE 1=1`
 
 	args := []interface{}{}
 	argIndex := 1
@@ -343,14 +335,10 @@ func queryPostgreSQL(params QueryParams) ([]Event, error) {
 	for rows.Next() {
 		var event Event
 		if err := rows.Scan(
-			&event.ID,
 			&event.Timestamp,
-			&event.Shard,
-			&event.Seq,
 			&event.Tool,
 			&event.Topic,
 			&event.Structured,
-			&event.Genlog,
 		); err != nil {
 			log.Printf("[PostgreSQL] Row scan error: %v", err)
 			return nil, err

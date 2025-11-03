@@ -221,32 +221,22 @@ function App() {
                 <table className="events-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
                       <th>Timestamp</th>
-                      <th>Shard</th>
-                      <th>Seq</th>
                       <th>Tool</th>
                       <th>Topic</th>
                       <th>Structured</th>
-                      <th>Genlog</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {events.map((event) => (
-                      <tr key={event.id}>
-                        <td className="td-id">{event.id}</td>
+                    {events.map((event, index) => (
+                      <tr key={`${event.timestamp}-${index}`}>
                         <td>{formatTimestamp(event.timestamp)}</td>
-                        <td>{event.shard}</td>
-                        <td>{event.seq}</td>
                         <td>{event.tool}</td>
                         <td>{event.topic}</td>
                         <td className="td-structured">
                           <div className="structured-content">
                             {event.structured || '-'}
                           </div>
-                        </td>
-                        <td className="td-genlog">
-                          <div className="genlog-content">{event.__genlog__ || '-'}</div>
                         </td>
                       </tr>
                     ))}
