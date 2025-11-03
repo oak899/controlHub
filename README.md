@@ -19,18 +19,18 @@
 ## 数据库配置
 
 ### PostgreSQL
-- 主机: localhost
-- 用户名: admin
-- 密码: secure
-- 数据库: tsdb
-- 表: events
+- Host: localhost
+- Username: postgres
+- Password: secure
+- Database: tsdb
+- Table: events
 
 ### ClickHouse
-- 主机: localhost:9000
-- 用户名: default
-- 密码: (空)
-- 数据库: default
-- 表: events
+- Host: localhost:9000
+- Username: default
+- Password: (empty)
+- Database: default
+- Table: events
 
 ## 安装和运行
 
@@ -47,12 +47,12 @@ cd backend
 go mod download
 ```
 
-4. 运行服务器:
+4. Run the server:
 ```bash
 go run main.go
 ```
 
-服务器将在 `http://localhost:8080` 启动
+The server will start on `http://0.0.0.0:7890`
 
 ### 前端
 
@@ -67,12 +67,12 @@ cd frontend
 npm install
 ```
 
-4. 启动开发服务器:
+4. Start the development server:
 ```bash
 npm run dev
 ```
 
-前端将在 `http://localhost:3000` 启动
+The frontend will start on `http://0.0.0.0:7777`
 
 ## 构建生产版本
 

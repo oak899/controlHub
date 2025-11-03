@@ -5,14 +5,14 @@ import './App.css'
 const API_BASE_URL = '/api'
 
 const timeRanges = [
-  { value: '1m', label: '1分钟' },
-  { value: '5m', label: '5分钟' },
-  { value: '20m', label: '20分钟' },
-  { value: '1h', label: '1小时' },
-  { value: '5h', label: '5小时' },
-  { value: '1d', label: '1天' },
-  { value: '1w', label: '1周' },
-  { value: '1mo', label: '1个月' },
+  { value: '1m', label: '1 Minute' },
+  { value: '5m', label: '5 Minutes' },
+  { value: '20m', label: '20 Minutes' },
+  { value: '1h', label: '1 Hour' },
+  { value: '5h', label: '5 Hours' },
+  { value: '1d', label: '1 Day' },
+  { value: '1w', label: '1 Week' },
+  { value: '1mo', label: '1 Month' },
 ]
 
 function App() {
@@ -25,8 +25,11 @@ function App() {
   const [selectedMenu, setSelectedMenu] = useState('events')
 
   const fetchEvents = async () => {
+    console.log('[Frontend] Fetching events...', { database, timeRange, contentFilter })
     setLoading(true)
     setError(null)
+    const startTime = Date.now()
+    
     try {
       const params = {
         timeRange,
@@ -40,10 +43,16 @@ function App() {
         params.database = database
       }
 
+      console.log('[Frontend] API request params:', params)
       const response = await axios.get(`${API_BASE_URL}/events`, { params })
+      const duration = Date.now() - startTime
+      console.log(`[Frontend] Received ${response.data.events?.length || 0} events in ${duration}ms`)
       setEvents(response.data.events || [])
     } catch (err) {
-      setError(err.response?.data?.error || err.message || '获取数据失败')
+      const duration = Date.now() - startTime
+      console.error('[Frontend] Failed to fetch events:', err)
+      console.error('[Frontend] Error details:', err.response?.data || err.message)
+      setError(err.response?.data?.error || err.message || 'Failed to fetch data')
       setEvents([])
     } finally {
       setLoading(false)
@@ -51,18 +60,27 @@ function App() {
   }
 
   useEffect(() => {
+    console.log('[Frontend] Component mounted or dependencies changed')
     fetchEvents()
   }, [timeRange, database])
+  
+  useEffect(() => {
+    console.log('[Frontend] Component mounted')
+    return () => {
+      console.log('[Frontend] Component unmounting')
+    }
+  }, [])
 
   const handleContentFilterSubmit = (e) => {
     e.preventDefault()
+    console.log('[Frontend] Content filter submitted:', contentFilter)
     fetchEvents()
   }
 
   const formatTimestamp = (timestamp) => {
     try {
       const date = new Date(timestamp)
-      return date.toLocaleString('zh-CN', {
+      return date.toLocaleString('en-US', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -103,16 +121,22 @@ function App() {
               Events
             </button>
             <div className="nav-section">
-              <h3>数据库</h3>
+              <h3>Databases</h3>
               <button
                 className={`nav-item ${database === 'clickhouse' ? 'active' : ''}`}
-                onClick={() => setDatabase('clickhouse')}
+                onClick={() => {
+                  console.log('[Frontend] Switching to ClickHouse database')
+                  setDatabase('clickhouse')
+                }}
               >
                 ClickHouse
               </button>
               <button
                 className={`nav-item ${database === 'postgresql' ? 'active' : ''}`}
-                onClick={() => setDatabase('postgresql')}
+                onClick={() => {
+                  console.log('[Frontend] Switching to PostgreSQL database')
+                  setDatabase('postgresql')
+                }}
               >
                 PostgreSQL
               </button>
@@ -125,10 +149,13 @@ function App() {
           {/* Filters */}
           <div className="filters">
             <div className="filter-group">
-              <label>时间范围:</label>
+              <label>Time Range:</label>
               <select
                 value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
+                onChange={(e) => {
+                  console.log('[Frontend] Time range changed to:', e.target.value)
+                  setTimeRange(e.target.value)
+                }}
                 className="filter-select"
               >
                 {timeRanges.map((range) => (
@@ -140,44 +167,44 @@ function App() {
             </div>
 
             <form onSubmit={handleContentFilterSubmit} className="filter-group">
-              <label>内容过滤:</label>
+              <label>Content Filter:</label>
               <input
                 type="text"
                 value={contentFilter}
                 onChange={(e) => setContentFilter(e.target.value)}
-                placeholder="搜索 structured 字段内容..."
+                placeholder="Search structured field content..."
                 className="filter-input"
               />
               <button type="submit" className="filter-button">
-                搜索
+                Search
               </button>
             </form>
 
             <button onClick={fetchEvents} className="refresh-button" disabled={loading}>
-              {loading ? '加载中...' : '刷新'}
+              {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
 
           {/* Error Display */}
           {error && (
             <div className="error-message">
-              <strong>错误:</strong> {error}
+              <strong>Error:</strong> {error}
             </div>
           )}
 
           {/* Events Table */}
           <div className="events-container">
             {loading ? (
-              <div className="loading">加载中...</div>
+              <div className="loading">Loading...</div>
             ) : events.length === 0 ? (
-              <div className="empty-state">没有找到事件数据</div>
+              <div className="empty-state">No events found</div>
             ) : (
               <div className="events-table-wrapper">
                 <table className="events-table">
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>时间戳</th>
+                      <th>Timestamp</th>
                       <th>Shard</th>
                       <th>Seq</th>
                       <th>Tool</th>
@@ -214,7 +241,7 @@ function App() {
           {/* Stats */}
           {events.length > 0 && (
             <div className="stats">
-              显示 {events.length} 条记录
+              Displaying {events.length} record{events.length !== 1 ? 's' : ''}
             </div>
           )}
         </main>

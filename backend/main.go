@@ -39,6 +39,7 @@ var postgresqlDB *sql.DB
 
 func main() {
 	// Initialize ClickHouse connection
+	log.Println("Connecting to ClickHouse...")
 	var err error
 	clickhouseConn, err = clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"localhost:9000"},
@@ -52,9 +53,11 @@ func main() {
 		log.Fatalf("Failed to connect to ClickHouse: %v", err)
 	}
 	defer clickhouseConn.Close()
+	log.Println("ClickHouse connection established")
 
 	// Initialize PostgreSQL connection
-	postgresqlDB, err = sql.Open("postgres", "host=localhost user=admin password=secure dbname=tsdb sslmode=disable")
+	log.Println("Connecting to PostgreSQL...")
+	postgresqlDB, err = sql.Open("postgres", "host=localhost user=postgres password=secure dbname=tsdb sslmode=disable")
 	if err != nil {
 		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
 	}
@@ -64,7 +67,9 @@ func main() {
 	if err = postgresqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping PostgreSQL: %v", err)
 	}
-	log.Println("Connected to both databases")
+	log.Println("Successfully connected to PostgreSQL")
+	log.Println("Successfully connected to ClickHouse")
+	log.Println("Both databases are ready")
 
 	// Setup Gin router
 	r := gin.Default()
@@ -87,16 +92,19 @@ func main() {
 	r.Static("/static", "./frontend/dist")
 	r.StaticFile("/", "./frontend/dist/index.html")
 
-	log.Println("Server starting on :8080")
-	if err := r.Run(":8080"); err != nil {
+	log.Println("Server starting on 0.0.0.0:7890")
+	if err := r.Run("0.0.0.0:7890"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
 
 
 func getEvents(c *gin.Context) {
+	log.Printf("[API] GET /api/events - Client IP: %s", c.ClientIP())
+	
 	var params QueryParams
 	if err := c.ShouldBindQuery(&params); err != nil {
+		log.Printf("[ERROR] Failed to bind query parameters: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -109,8 +117,12 @@ func getEvents(c *gin.Context) {
 		params.Database = "clickhouse"
 	}
 
+	log.Printf("[QUERY] Database: %s, TimeRange: %s, ContentFilter: %s, Limit: %d, Offset: %d",
+		params.Database, params.TimeRange, params.Content, params.Limit, params.Offset)
+
 	var events []Event
 	var err error
+	startTime := time.Now()
 
 	if params.Database == "clickhouse" {
 		events, err = queryClickHouse(params)
@@ -118,11 +130,15 @@ func getEvents(c *gin.Context) {
 		events, err = queryPostgreSQL(params)
 	}
 
+	duration := time.Since(startTime)
+
 	if err != nil {
+		log.Printf("[ERROR] Query failed after %v: %v", duration, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("[SUCCESS] Retrieved %d events from %s in %v", len(events), params.Database, duration)
 	c.JSON(http.StatusOK, gin.H{
 		"events": events,
 		"count":  len(events),
@@ -131,6 +147,7 @@ func getEvents(c *gin.Context) {
 }
 
 func queryClickHouse(params QueryParams) ([]Event, error) {
+	log.Printf("[ClickHouse] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
 	ctx := context.Background()
 
 	query := `SELECT id, timestamp, shard, seq, tool, topic, structured, __genlog__ FROM events WHERE 1=1`
@@ -181,13 +198,16 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 		query += " ORDER BY timestamp DESC"
 	}
 
+	log.Printf("[ClickHouse] Executing query: %s", query)
 	rows, err := clickhouseConn.Query(ctx, query, args...)
 	if err != nil {
+		log.Printf("[ClickHouse] Query execution failed: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
 
 	var events []Event
+	rowCount := 0
 	for rows.Next() {
 		var event Event
 		if err := rows.Scan(
@@ -200,15 +220,19 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 			&event.Structured,
 			&event.Genlog,
 		); err != nil {
+			log.Printf("[ClickHouse] Row scan error: %v", err)
 			return nil, err
 		}
 		events = append(events, event)
+		rowCount++
 	}
 
+	log.Printf("[ClickHouse] Successfully retrieved %d rows", rowCount)
 	return events, rows.Err()
 }
 
 func queryPostgreSQL(params QueryParams) ([]Event, error) {
+	log.Printf("[PostgreSQL] Starting query with timeRange=%s, content=%s", params.TimeRange, params.Content)
 	query := `SELECT id, timestamp, shard, seq, tool, topic, structured, __genlog__ FROM events WHERE 1=1`
 
 	args := []interface{}{}
@@ -260,13 +284,16 @@ func queryPostgreSQL(params QueryParams) ([]Event, error) {
 		args = append(args, params.Offset)
 	}
 
+	log.Printf("[PostgreSQL] Executing query: %s", query)
 	rows, err := postgresqlDB.Query(query, args...)
 	if err != nil {
+		log.Printf("[PostgreSQL] Query execution failed: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
 
 	var events []Event
+	rowCount := 0
 	for rows.Next() {
 		var event Event
 		if err := rows.Scan(
@@ -279,16 +306,19 @@ func queryPostgreSQL(params QueryParams) ([]Event, error) {
 			&event.Structured,
 			&event.Genlog,
 		); err != nil {
+			log.Printf("[PostgreSQL] Row scan error: %v", err)
 			return nil, err
 		}
 		events = append(events, event)
+		rowCount++
 	}
 
+	log.Printf("[PostgreSQL] Successfully retrieved %d rows", rowCount)
 	return events, rows.Err()
 }
 
 func getStats(c *gin.Context) {
-	// Return basic statistics
+	log.Printf("[API] GET /api/stats - Client IP: %s", c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{
 		"clickhouse": "connected",
 		"postgresql": "connected",
