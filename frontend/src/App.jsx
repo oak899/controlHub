@@ -21,6 +21,9 @@ function App() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [timeRange, setTimeRange] = useState('1h')
+  const [exactTime, setExactTime] = useState('')
+  const [timeWindow, setTimeWindow] = useState('5') // minutes around exact time
+  const [useExactTime, setUseExactTime] = useState(false)
   const [contentFilter, setContentFilter] = useState('')
   const [topicFilter, setTopicFilter] = useState('')
   const [formatJson, setFormatJson] = useState(false)
@@ -31,7 +34,7 @@ function App() {
   const eventsContainerRef = useRef(null)
 
   const fetchEvents = async (append = false, currentOffset = 0) => {
-    console.log('[Frontend] Fetching events...', { database, timeRange, contentFilter, topicFilter, offset: currentOffset, append })
+    console.log('[Frontend] Fetching events...', { database, timeRange, exactTime, useExactTime, contentFilter, topicFilter, offset: currentOffset, append })
     
     if (append) {
       setLoadingMore(true)
@@ -45,10 +48,18 @@ function App() {
     
     try {
       const params = {
-        timeRange,
         limit: 100,
         offset: currentOffset,
       }
+      
+      // Use exact time if enabled and provided, otherwise use timeRange
+      if (useExactTime && exactTime) {
+        params.exactTime = exactTime
+        params.timeWindow = timeWindow
+      } else {
+        params.timeRange = timeRange
+      }
+      
       if (contentFilter.trim()) {
         params.content = contentFilter.trim()
       }
@@ -107,10 +118,18 @@ function App() {
       const currentOffset = offset
       // Use the offset state directly
       const params = {
-        timeRange,
         limit: 100,
         offset: currentOffset,
       }
+      
+      // Use exact time if enabled and provided, otherwise use timeRange
+      if (useExactTime && exactTime) {
+        params.exactTime = exactTime
+        params.timeWindow = timeWindow
+      } else {
+        params.timeRange = timeRange
+      }
+      
       if (contentFilter.trim()) {
         params.content = contentFilter.trim()
       }
@@ -142,7 +161,7 @@ function App() {
         setLoadingMore(false)
       })
     }
-  }, [loadingMore, hasMore, loading, offset, timeRange, contentFilter, topicFilter, database])
+  }, [loadingMore, hasMore, loading, offset, timeRange, exactTime, timeWindow, useExactTime, contentFilter, topicFilter, database])
 
   // Handle scroll for infinite loading
   useEffect(() => {
@@ -182,7 +201,7 @@ function App() {
       }
     }
     checkHealth()
-  }, [timeRange, database, topicFilter, contentFilter])
+  }, [timeRange, database, topicFilter, contentFilter, useExactTime, exactTime, timeWindow])
   
   useEffect(() => {
     console.log('[Frontend] Component mounted')
@@ -287,22 +306,72 @@ function App() {
           {/* Filters */}
           <div className="filters">
             <div className="filter-group">
-              <label>Time Range:</label>
-              <select
-                value={timeRange}
-                onChange={(e) => {
-                  console.log('[Frontend] Time range changed to:', e.target.value)
-                  setTimeRange(e.target.value)
-                }}
-                className="filter-select"
-              >
-                {timeRanges.map((range) => (
-                  <option key={range.value} value={range.value}>
-                    {range.label}
-                  </option>
-                ))}
-              </select>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={useExactTime}
+                  onChange={(e) => {
+                    setUseExactTime(e.target.checked)
+                    if (e.target.checked && !exactTime) {
+                      // Set default to current time
+                      const now = new Date()
+                      now.setSeconds(0, 0) // Round to nearest minute
+                      setExactTime(now.toISOString().slice(0, 16))
+                    }
+                  }}
+                />
+                Use Exact Time
+              </label>
             </div>
+
+            {useExactTime ? (
+              <>
+                <div className="filter-group">
+                  <label>Exact Time:</label>
+                  <input
+                    type="datetime-local"
+                    value={exactTime}
+                    onChange={(e) => {
+                      console.log('[Frontend] Exact time changed to:', e.target.value)
+                      setExactTime(e.target.value)
+                    }}
+                    className="filter-input"
+                    step="1"
+                  />
+                </div>
+                <div className="filter-group">
+                  <label>Window (min):</label>
+                  <input
+                    type="number"
+                    value={timeWindow}
+                    onChange={(e) => setTimeWindow(e.target.value)}
+                    className="filter-input"
+                    min="1"
+                    max="60"
+                    style={{ width: '80px' }}
+                    placeholder="5"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="filter-group">
+                <label>Time Range:</label>
+                <select
+                  value={timeRange}
+                  onChange={(e) => {
+                    console.log('[Frontend] Time range changed to:', e.target.value)
+                    setTimeRange(e.target.value)
+                  }}
+                  className="filter-select"
+                >
+                  {timeRanges.map((range) => (
+                    <option key={range.value} value={range.value}>
+                      {range.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <form onSubmit={handleContentFilterSubmit} className="filter-group">
               <label>Content Filter:</label>

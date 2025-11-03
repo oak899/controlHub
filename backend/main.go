@@ -24,12 +24,14 @@ type Event struct {
 }
 
 type QueryParams struct {
-	TimeRange string `form:"timeRange" json:"timeRange"` // 1m, 5m, 20m, 1h, 5h, 1d, 1w, 1mo
-	Content   string `form:"content" json:"content"`     // filter content in structured field
-	Topic     string `form:"topic" json:"topic"`         // filter by topic
-	Database  string `form:"database" json:"database"`   // clickhouse or postgresql
-	Limit     int    `form:"limit" json:"limit"`         // default 100
-	Offset    int    `form:"offset" json:"offset"`       // default 0
+	TimeRange  string `form:"timeRange" json:"timeRange"`   // 1m, 5m, 20m, 1h, 5h, 1d, 1w, 1mo
+	ExactTime  string `form:"exactTime" json:"exactTime"`   // exact time in ISO format (YYYY-MM-DDTHH:mm)
+	TimeWindow string `form:"timeWindow" json:"timeWindow"` // window in minutes around exact time
+	Content    string `form:"content" json:"content"`       // filter content in structured field
+	Topic      string `form:"topic" json:"topic"`           // filter by topic
+	Database   string `form:"database" json:"database"`     // clickhouse or postgresql
+	Limit      int    `form:"limit" json:"limit"`           // default 100
+	Offset     int    `form:"offset" json:"offset"`         // default 0
 }
 
 var clickhouseConn driver.Conn
@@ -159,8 +161,8 @@ func getEvents(c *gin.Context) {
 		params.Database = "clickhouse"
 	}
 
-	log.Printf("[QUERY] Database: %s, TimeRange: %s, ContentFilter: %s, TopicFilter: %s, Limit: %d, Offset: %d",
-		params.Database, params.TimeRange, params.Content, params.Topic, params.Limit, params.Offset)
+	log.Printf("[QUERY] Database: %s, TimeRange: %s, ExactTime: %s, TimeWindow: %s, ContentFilter: %s, TopicFilter: %s, Limit: %d, Offset: %d",
+		params.Database, params.TimeRange, params.ExactTime, params.TimeWindow, params.Content, params.Topic, params.Limit, params.Offset)
 
 	var events []Event
 	var err error
@@ -189,15 +191,34 @@ func getEvents(c *gin.Context) {
 }
 
 func queryClickHouse(params QueryParams) ([]Event, error) {
-	log.Printf("[ClickHouse] Starting query with timeRange=%s, content=%s, topic=%s", params.TimeRange, params.Content, params.Topic)
+	log.Printf("[ClickHouse] Starting query with timeRange=%s, exactTime=%s, timeWindow=%s, content=%s, topic=%s", params.TimeRange, params.ExactTime, params.TimeWindow, params.Content, params.Topic)
 	ctx := context.Background()
 
 	query := `SELECT timestamp, tool, topic, structured FROM events WHERE 1=1`
 
 	args := []interface{}{}
 
-	// Add time range condition
-	if params.TimeRange != "" {
+	// Add time condition - either exact time with window or time range
+	if params.ExactTime != "" {
+		// Parse exact time and create window around it
+		exactTime, err := time.Parse("2006-01-02T15:04", params.ExactTime)
+		if err != nil {
+			log.Printf("[ClickHouse] Failed to parse exact time: %v", err)
+			// Fall back to timeRange if exactTime parsing fails
+		} else {
+			windowMinutes := 5
+			if params.TimeWindow != "" {
+				if w, err := time.ParseDuration(params.TimeWindow + "m"); err == nil {
+					windowMinutes = int(w.Minutes())
+				}
+			}
+			window := time.Duration(windowMinutes) * time.Minute
+			startTime := exactTime.Add(-window)
+			endTime := exactTime.Add(window)
+			query += " AND timestamp >= ? AND timestamp <= ?"
+			args = append(args, startTime, endTime)
+		}
+	} else if params.TimeRange != "" {
 		var duration time.Duration
 		switch params.TimeRange {
 		case "1m":
@@ -276,15 +297,35 @@ func queryClickHouse(params QueryParams) ([]Event, error) {
 }
 
 func queryPostgreSQL(params QueryParams) ([]Event, error) {
-	log.Printf("[PostgreSQL] Starting query with timeRange=%s, content=%s, topic=%s", params.TimeRange, params.Content, params.Topic)
+	log.Printf("[PostgreSQL] Starting query with timeRange=%s, exactTime=%s, timeWindow=%s, content=%s, topic=%s", params.TimeRange, params.ExactTime, params.TimeWindow, params.Content, params.Topic)
 	// Convert jsonb to text in SELECT to handle jsonb type properly
 	query := `SELECT timestamp, tool, topic, structured::text FROM events WHERE 1=1`
 
 	args := []interface{}{}
 	argIndex := 1
 
-	// Add time range condition
-	if params.TimeRange != "" {
+	// Add time condition - either exact time with window or time range
+	if params.ExactTime != "" {
+		// Parse exact time and create window around it
+		exactTime, err := time.Parse("2006-01-02T15:04", params.ExactTime)
+		if err != nil {
+			log.Printf("[PostgreSQL] Failed to parse exact time: %v", err)
+			// Fall back to timeRange if exactTime parsing fails
+		} else {
+			windowMinutes := 5
+			if params.TimeWindow != "" {
+				if w, err := time.ParseDuration(params.TimeWindow + "m"); err == nil {
+					windowMinutes = int(w.Minutes())
+				}
+			}
+			window := time.Duration(windowMinutes) * time.Minute
+			startTime := exactTime.Add(-window)
+			endTime := exactTime.Add(window)
+			query += fmt.Sprintf(" AND timestamp >= $%d AND timestamp <= $%d", argIndex, argIndex+1)
+			args = append(args, startTime, endTime)
+			argIndex += 2
+		}
+	} else if params.TimeRange != "" {
 		var duration time.Duration
 		switch params.TimeRange {
 		case "1m":
