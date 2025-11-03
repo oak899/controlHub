@@ -35,23 +35,7 @@ function Charts() {
   const [availableFields, setAvailableFields] = useState([])
   const [selectedFields, setSelectedFields] = useState([])
   const [chartData, setChartData] = useState([])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const urlTimeRange = params.get('timeRange')
-    const urlTopic = params.get('topic')
-    const urlDatabase = params.get('database')
-    
-    if (urlTimeRange) setTimeRange(urlTimeRange)
-    if (urlTopic) setTopicFilter(urlTopic)
-    if (urlDatabase) setDatabase(urlDatabase)
-  }, [])
-  
-  useEffect(() => {
-    if (events.length > 0 && selectedFields.length === 0 && availableFields.length > 0) {
-      setSelectedFields([availableFields[0]])
-    }
-  }, [events, availableFields, selectedFields.length])
+  const [fieldSearch, setFieldSearch] = useState('')
 
   const fetchEvents = async () => {
     if (!topicFilter.trim()) {
@@ -92,6 +76,82 @@ function Charts() {
     }
   }
 
+  useEffect(() => {
+    const loadFromURL = () => {
+      const params = new URLSearchParams(window.location.search)
+      const urlTimeRange = params.get('timeRange')
+      const urlExactTime = params.get('exactTime')
+      const urlUseExactTime = params.get('useExactTime') === 'true'
+      const urlTopic = params.get('topic')
+      const urlDatabase = params.get('database')
+      
+      if (urlTimeRange) setTimeRange(urlTimeRange)
+      if (urlTopic) {
+        setTopicFilter(urlTopic)
+      }
+      if (urlDatabase) setDatabase(urlDatabase)
+    }
+
+    loadFromURL()
+    
+    // Listen for URL changes (e.g., when navigating from Events page)
+    const handlePopState = () => {
+      loadFromURL()
+    }
+    
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    // Auto-load data if topic filter is set from URL
+    const params = new URLSearchParams(window.location.search)
+    const urlTopic = params.get('topic')
+    if (urlTopic && topicFilter === urlTopic && topicFilter.trim()) {
+      // Small delay to ensure state is set
+      const timer = setTimeout(() => {
+        fetchEvents()
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topicFilter])
+  
+  useEffect(() => {
+    if (events.length > 0 && selectedFields.length === 0 && availableFields.length > 0) {
+      setSelectedFields([availableFields[0]])
+    }
+  }, [events, availableFields, selectedFields.length])
+
+  // Recursively extract all numeric fields from nested JSON
+  const extractNestedFields = (obj, prefix = '', fieldSet = new Set()) => {
+    if (obj === null || obj === undefined) return fieldSet
+    
+    if (Array.isArray(obj)) {
+      obj.forEach((item, index) => {
+        extractNestedFields(item, `${prefix}[${index}]`, fieldSet)
+      })
+    } else if (typeof obj === 'object') {
+      Object.keys(obj).forEach(key => {
+        const value = obj[key]
+        const fieldPath = prefix ? `${prefix}.${key}` : key
+        
+        if (typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)) && value.trim() !== '')) {
+          // Check if it's a valid number
+          const numValue = typeof value === 'number' ? value : parseFloat(value)
+          if (!isNaN(numValue) && isFinite(numValue)) {
+            fieldSet.add(fieldPath)
+          }
+        } else if (typeof value === 'object' && value !== null) {
+          // Recursively process nested objects
+          extractNestedFields(value, fieldPath, fieldSet)
+        }
+      })
+    }
+    
+    return fieldSet
+  }
+
   const extractFields = (events) => {
     const fieldSet = new Set()
     
@@ -99,13 +159,7 @@ function Charts() {
       if (event.structured) {
         try {
           const parsed = JSON.parse(event.structured)
-          Object.keys(parsed).forEach(key => {
-            // Only include numeric fields for charting
-            const value = parsed[key]
-            if (typeof value === 'number' || !isNaN(parseFloat(value))) {
-              fieldSet.add(key)
-            }
-          })
+          extractNestedFields(parsed, '', fieldSet)
         } catch (e) {
           // Not valid JSON, skip
         }
@@ -113,7 +167,7 @@ function Charts() {
     })
 
     const fields = Array.from(fieldSet).sort()
-    console.log('[Charts] Available numeric fields:', fields)
+    console.log('[Charts] Available numeric fields (including nested):', fields)
     setAvailableFields(fields)
     
     // Auto-select first field if none selected
@@ -149,10 +203,11 @@ function Charts() {
           }
 
           selectedFields.forEach((field) => {
-            const value = parsed[field]
+            // Get nested value using field path (e.g., "user.score" or "data[0].value")
+            const value = getNestedValue(parsed, field)
             if (value !== undefined && value !== null) {
               const numValue = typeof value === 'number' ? value : parseFloat(value)
-              if (!isNaN(numValue)) {
+              if (!isNaN(numValue) && isFinite(numValue)) {
                 dataPoint[field] = numValue
               }
             }
@@ -186,6 +241,30 @@ function Charts() {
     setChartData(chartDataArray)
   }
 
+  // Get nested value from object using dot notation or array notation
+  const getNestedValue = (obj, path) => {
+    if (!obj || !path) return undefined
+    
+    // Handle array notation like "data[0].value"
+    const parts = path.split(/[\.\[\]]/).filter(p => p !== '')
+    
+    let current = obj
+    for (const part of parts) {
+      if (current === null || current === undefined) return undefined
+      if (Array.isArray(current)) {
+        const index = parseInt(part, 10)
+        if (isNaN(index)) return undefined
+        current = current[index]
+      } else if (typeof current === 'object') {
+        current = current[part]
+      } else {
+        return undefined
+      }
+    }
+    
+    return current
+  }
+
   const handleFieldToggle = (field) => {
     setSelectedFields(prev => {
       if (prev.includes(field)) {
@@ -195,6 +274,11 @@ function Charts() {
       }
     })
   }
+
+  // Filter fields based on search
+  const filteredFields = availableFields.filter(field =>
+    field.toLowerCase().includes(fieldSearch.toLowerCase())
+  )
 
   const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088fe', '#00c49f', '#ffbb28', '#ff8042']
 
@@ -257,18 +341,33 @@ function Charts() {
 
       {availableFields.length > 0 && (
         <div className="field-selector">
-          <label>Select Fields to Plot:</label>
-          <div className="field-checkboxes">
-            {availableFields.map((field) => (
-              <label key={field} className={`field-checkbox ${selectedFields.includes(field) ? 'checked' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={selectedFields.includes(field)}
-                  onChange={() => handleFieldToggle(field)}
-                />
-                <span>{field}</span>
-              </label>
-            ))}
+          <div className="field-selector-header">
+            <label>Select Fields to Plot ({availableFields.length} available):</label>
+            <input
+              type="text"
+              placeholder="Search fields..."
+              value={fieldSearch}
+              onChange={(e) => setFieldSearch(e.target.value)}
+              className="field-search-input"
+            />
+          </div>
+          <div className="field-checkboxes-container">
+            <div className="field-checkboxes">
+              {filteredFields.length > 0 ? (
+                filteredFields.map((field) => (
+                  <label key={field} className={`field-checkbox ${selectedFields.includes(field) ? 'checked' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedFields.includes(field)}
+                      onChange={() => handleFieldToggle(field)}
+                    />
+                    <span>{field}</span>
+                  </label>
+                ))
+              ) : (
+                <div className="no-fields-found">No fields match your search</div>
+              )}
+            </div>
           </div>
         </div>
       )}

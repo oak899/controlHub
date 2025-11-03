@@ -506,24 +506,53 @@ function App() {
             ) : (
               <div className="events-table-wrapper">
                 <table className="events-table">
-                  <thead>
-                    <tr>
-                      <th>Timestamp</th>
-                      <th>Tool</th>
-                      <th>Topic</th>
-                      <th>Structured</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {events.map((event, index) => (
-                      <tr key={`${event.timestamp}-${index}`}>
-                        <td className="td-timestamp">{formatTimestamp(event.timestamp)}</td>
-                        <td className="td-tool" title={event.tool || ''}>
-                          {event.tool ? (event.tool.length > 8 ? event.tool.substring(0, 8) + '...' : event.tool) : '-'}
-                        </td>
-                        <td className="td-topic" title={event.topic || ''}>
-                          {event.topic || '-'}
-                        </td>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px' }}></th>
+                        <th>Timestamp</th>
+                        <th>Tool</th>
+                        <th>Topic</th>
+                        <th>Structured</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {events.map((event, index) => (
+                        <tr key={`${event.timestamp}-${index}`}>
+                          <td className="td-chart-icon">
+                            <button
+                              onClick={() => {
+                                const params = new URLSearchParams()
+                                if (useExactTime && exactTime) {
+                                  params.set('exactTime', exactTime)
+                                  params.set('useExactTime', 'true')
+                                } else if (timeRange) {
+                                  params.set('timeRange', timeRange)
+                                }
+                                if (event.topic) {
+                                  params.set('topic', event.topic)
+                                }
+                                if (database && database !== 'clickhouse') {
+                                  params.set('database', database)
+                                }
+                                const url = `${window.location.pathname}?${params.toString()}`
+                                setSelectedMenu('charts')
+                                window.history.pushState({}, '', url)
+                                // Force re-render by updating URL search params
+                                window.dispatchEvent(new PopStateEvent('popstate'))
+                              }}
+                              className="chart-icon-button"
+                              title="View chart for this topic"
+                            >
+                              📊
+                            </button>
+                          </td>
+                          <td className="td-timestamp">{formatTimestamp(event.timestamp)}</td>
+                          <td className="td-tool" title={event.tool || ''}>
+                            {event.tool ? (event.tool.length > 8 ? event.tool.substring(0, 8) + '...' : event.tool) : '-'}
+                          </td>
+                          <td className="td-topic" title={event.topic || ''}>
+                            {event.topic || '-'}
+                          </td>
                         <td className="td-structured">
                           <div className={`structured-content ${formatJson ? 'json-formatted' : ''}`}>
                             {formatStructured(event.structured)}
