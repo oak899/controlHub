@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
+import Charts from './Charts'
 import './App.css'
 
 const API_BASE_URL = '/api'
@@ -327,6 +328,12 @@ function App() {
             >
               Events
             </button>
+            <button
+              className={`nav-item ${selectedMenu === 'charts' ? 'active' : ''}`}
+              onClick={() => setSelectedMenu('charts')}
+            >
+              Charts
+            </button>
             <div className="nav-section">
               <h3>Databases</h3>
               <button
@@ -353,6 +360,10 @@ function App() {
 
         {/* Main Content */}
         <main className="content">
+          {selectedMenu === 'charts' ? (
+            <Charts />
+          ) : (
+            <>
           {/* Filters */}
           <div className="filters">
             <div className="filter-group">
@@ -541,6 +552,8 @@ function App() {
             <div className="stats">
               Displaying {events.length} record{events.length !== 1 ? 's' : ''}
             </div>
+          )}
+            </>
           )}
         </main>
       </div>

@@ -255,6 +255,101 @@
   font-size: 1.1rem;
 }
 
+/* Charts Page */
+.charts-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 1.5rem;
+}
+
+.charts-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chart-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  height: 40px;
+  box-sizing: border-box;
+}
+
+.chart-filter-group label {
+  font-weight: 500;
+  color: #4a5568;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.field-selector {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.field-selector label {
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.field-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.field-checkbox:hover {
+  background: #edf2f7;
+  border-color: #cbd5e0;
+}
+
+.field-checkbox.checked {
+  background: #e6fffa;
+  border-color: #38b2ac;
+  color: #234e52;
+}
+
+.field-checkbox input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.chart-container {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-height: 500px;
+}
+
 /* Events Container */
 .events-container {
   flex: 1;
