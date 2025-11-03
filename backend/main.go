@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -95,23 +96,47 @@ func main() {
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	r.Use(cors.New(config))
 
-	// API routes
+	// API routes - register before static files to avoid conflicts
 	api := r.Group("/api")
 	{
-		// Health check endpoint
+		// Health check endpoint - register first
 		api.GET("/health", func(c *gin.Context) {
+			log.Printf("[API] GET /api/health - Health check request from %s", c.ClientIP())
 			c.JSON(http.StatusOK, gin.H{
 				"status":    "ok",
 				"timestamp": time.Now(),
+				"path":      c.Request.URL.Path,
 			})
 		})
 		api.GET("/events", getEvents)
 		api.GET("/stats", getStats)
 	}
 
-	// Serve static files in production
+	// Log all registered routes for debugging
+	log.Println("Registered API routes:")
+	log.Println("  GET /api/health")
+	log.Println("  GET /api/events")
+	log.Println("  GET /api/stats")
+
+	// Serve static files in production (only if directory exists)
 	r.Static("/static", "./frontend/dist")
-	r.StaticFile("/", "./frontend/dist/index.html")
+
+	// Handle 404 for API routes
+	r.NoRoute(func(c *gin.Context) {
+		log.Printf("[404] No route found for: %s %s from %s", c.Request.Method, c.Request.URL.Path, c.ClientIP())
+
+		// Only serve index.html for non-API routes
+		if strings.HasPrefix(c.Request.URL.Path, "/api") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":  "API endpoint not found",
+				"path":   c.Request.URL.Path,
+				"method": c.Request.Method,
+			})
+		} else {
+			// Try to serve index.html for frontend routes
+			c.File("./frontend/dist/index.html")
+		}
+	})
 
 	log.Println("Server starting on 0.0.0.0:7890")
 	if err := r.Run("0.0.0.0:7890"); err != nil {
