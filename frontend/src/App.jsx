@@ -207,17 +207,6 @@ function App() {
     }
   }, [])
 
-  const handleContentFilterSubmit = (e) => {
-    e.preventDefault()
-    console.log('[Frontend] Content filter submitted:', contentFilter)
-    fetchEvents(false, 0)
-  }
-
-  const handleTopicFilterSubmit = (e) => {
-    e.preventDefault()
-    console.log('[Frontend] Topic filter submitted:', topicFilter)
-    fetchEvents(false, 0)
-  }
 
   const formatStructured = (structured) => {
     if (!structured) return '-'
@@ -334,13 +323,6 @@ function App() {
                   className="filter-input"
                   step="1"
                 />
-                <button 
-                  type="button"
-                  onClick={() => fetchEvents(false, 0)}
-                  className="filter-button"
-                >
-                  Search
-                </button>
               </div>
             ) : (
               <div className="filter-group">
@@ -362,7 +344,7 @@ function App() {
               </div>
             )}
 
-            <form onSubmit={handleContentFilterSubmit} className="filter-group">
+            <div className="filter-group">
               <label>Content Filter:</label>
               <input
                 type="text"
@@ -370,13 +352,16 @@ function App() {
                 onChange={(e) => setContentFilter(e.target.value)}
                 placeholder="Search structured field content..."
                 className="filter-input"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    fetchEvents(false, 0)
+                  }
+                }}
               />
-              <button type="submit" className="filter-button">
-                Search
-              </button>
-            </form>
+            </div>
 
-            <form onSubmit={handleTopicFilterSubmit} className="filter-group">
+            <div className="filter-group">
               <label>Topic Filter:</label>
               <input
                 type="text"
@@ -384,11 +369,14 @@ function App() {
                 onChange={(e) => setTopicFilter(e.target.value)}
                 placeholder="Filter by topic..."
                 className="filter-input"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    fetchEvents(false, 0)
+                  }
+                }}
               />
-              <button type="submit" className="filter-button">
-                Search
-              </button>
-            </form>
+            </div>
 
             <div className="filter-group">
               <label>
@@ -404,6 +392,9 @@ function App() {
             <button onClick={() => fetchEvents(false, 0)} className="refresh-button" disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </button>
+            <div className="filter-info">
+              <small>Filters auto-apply or click Refresh to reload</small>
+            </div>
           </div>
 
           {/* Error Display */}
