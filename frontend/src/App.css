@@ -21,10 +21,39 @@
   max-width: 100%;
 }
 
-.banner h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
+.banner-title {
+  font-size: 2.2rem;
+  font-weight: 900;
   margin: 0;
+  font-family: 'Orbitron', 'Russo One', 'Arial Black', sans-serif;
+  letter-spacing: 0.25em;
+  color: #ffffff;
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.4),
+    0 0 15px rgba(255, 255, 255, 0.5),
+    0 0 25px rgba(255, 255, 255, 0.3),
+    0 0 35px rgba(200, 200, 255, 0.3);
+  text-transform: uppercase;
+  animation: glow 2s ease-in-out infinite alternate;
+  position: relative;
+}
+
+@keyframes glow {
+  from {
+    text-shadow: 
+      2px 2px 4px rgba(0, 0, 0, 0.4),
+      0 0 15px rgba(255, 255, 255, 0.5),
+      0 0 25px rgba(255, 255, 255, 0.3),
+      0 0 35px rgba(200, 200, 255, 0.3);
+  }
+  to {
+    text-shadow: 
+      2px 2px 4px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(255, 255, 255, 0.7),
+      0 0 35px rgba(255, 255, 255, 0.5),
+      0 0 50px rgba(200, 200, 255, 0.5),
+      0 0 60px rgba(180, 180, 255, 0.4);
+  }
 }
 
 .banner-status {
@@ -293,6 +322,25 @@
   padding: 0.75rem;
   font-size: 0.75rem;
   line-height: 1.5;
+}
+
+.loading-more {
+  text-align: center;
+  padding: 1rem;
+  color: #718096;
+  font-size: 0.875rem;
+  background: #f7fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.no-more-data {
+  text-align: center;
+  padding: 1rem;
+  color: #a0aec0;
+  font-size: 0.875rem;
+  background: #f7fafc;
+  border-top: 1px solid #e2e8f0;
+  font-style: italic;
 }
 
 .stats {

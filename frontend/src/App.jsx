@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import './App.css'
 
@@ -18,6 +18,7 @@ const timeRanges = [
 function App() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [timeRange, setTimeRange] = useState('1h')
   const [contentFilter, setContentFilter] = useState('')
@@ -25,10 +26,20 @@ function App() {
   const [formatJson, setFormatJson] = useState(false)
   const [database, setDatabase] = useState('clickhouse')
   const [selectedMenu, setSelectedMenu] = useState('events')
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const eventsContainerRef = useRef(null)
 
-  const fetchEvents = async () => {
-    console.log('[Frontend] Fetching events...', { database, timeRange, contentFilter, topicFilter })
-    setLoading(true)
+  const fetchEvents = async (append = false, currentOffset = 0) => {
+    console.log('[Frontend] Fetching events...', { database, timeRange, contentFilter, topicFilter, offset: currentOffset, append })
+    
+    if (append) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+      setOffset(0)
+      setHasMore(true)
+    }
     setError(null)
     const startTime = Date.now()
     
@@ -36,7 +47,7 @@ function App() {
       const params = {
         timeRange,
         limit: 100,
-        offset: 0,
+        offset: currentOffset,
       }
       if (contentFilter.trim()) {
         params.content = contentFilter.trim()
@@ -57,18 +68,104 @@ function App() {
         }
       })
       const duration = Date.now() - startTime
-      console.log(`[Frontend] Received ${response.data.events?.length || 0} events in ${duration}ms`)
-      setEvents(response.data.events || [])
+      const newEvents = response.data.events || []
+      console.log(`[Frontend] Received ${newEvents.length} events in ${duration}ms`)
+      
+      if (append) {
+        setEvents(prev => [...prev, ...newEvents])
+      } else {
+        setEvents(newEvents)
+      }
+      
+      // Check if we have more data
+      if (newEvents.length < 100) {
+        setHasMore(false)
+      } else {
+        setHasMore(true)
+        setOffset(currentOffset + newEvents.length)
+      }
     } catch (err) {
       const duration = Date.now() - startTime
       console.error('[Frontend] Failed to fetch events:', err)
       console.error('[Frontend] Error details:', err.response?.data || err.message)
       setError(err.response?.data?.error || err.message || 'Failed to fetch data')
-      setEvents([])
+      if (!append) {
+        setEvents([])
+      }
     } finally {
-      setLoading(false)
+      if (append) {
+        setLoadingMore(false)
+      } else {
+        setLoading(false)
+      }
     }
   }
+
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore && !loading) {
+      setLoadingMore(true)
+      const currentOffset = offset
+      // Use the offset state directly
+      const params = {
+        timeRange,
+        limit: 100,
+        offset: currentOffset,
+      }
+      if (contentFilter.trim()) {
+        params.content = contentFilter.trim()
+      }
+      if (topicFilter.trim()) {
+        params.topic = topicFilter.trim()
+      }
+      if (database) {
+        params.database = database
+      }
+
+      axios.get(`${API_BASE_URL}/events`, { 
+        params,
+        timeout: 30000,
+        validateStatus: function (status) {
+          return status < 500
+        }
+      }).then(response => {
+        const newEvents = response.data.events || []
+        setEvents(prev => [...prev, ...newEvents])
+        if (newEvents.length < 100) {
+          setHasMore(false)
+        } else {
+          setHasMore(true)
+          setOffset(currentOffset + newEvents.length)
+        }
+        setLoadingMore(false)
+      }).catch(err => {
+        console.error('[Frontend] Failed to load more events:', err)
+        setLoadingMore(false)
+      })
+    }
+  }, [loadingMore, hasMore, loading, offset, timeRange, contentFilter, topicFilter, database])
+
+  // Handle scroll for infinite loading
+  useEffect(() => {
+    const container = eventsContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      const scrollElement = container.querySelector('.events-table-wrapper')
+      if (!scrollElement) return
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement
+      // Load more when within 100px of bottom
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        loadMore()
+      }
+    }
+
+    const scrollElement = container.querySelector('.events-table-wrapper')
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll)
+      return () => scrollElement.removeEventListener('scroll', handleScroll)
+    }
+  }, [loadMore])
 
   useEffect(() => {
     console.log('[Frontend] Component mounted or dependencies changed')
@@ -77,7 +174,7 @@ function App() {
       try {
         const healthResponse = await axios.get('/api/health', { timeout: 5000 })
         console.log('[Frontend] Backend health check:', healthResponse.data)
-        fetchEvents()
+        fetchEvents(false, 0)
       } catch (err) {
         console.error('[Frontend] Backend health check failed:', err.message)
         setError(`Cannot connect to backend server. Please ensure the backend is running on port 7890. Error: ${err.message}`)
@@ -85,7 +182,7 @@ function App() {
       }
     }
     checkHealth()
-  }, [timeRange, database, topicFilter])
+  }, [timeRange, database, topicFilter, contentFilter])
   
   useEffect(() => {
     console.log('[Frontend] Component mounted')
@@ -97,13 +194,13 @@ function App() {
   const handleContentFilterSubmit = (e) => {
     e.preventDefault()
     console.log('[Frontend] Content filter submitted:', contentFilter)
-    fetchEvents()
+    fetchEvents(false, 0)
   }
 
   const handleTopicFilterSubmit = (e) => {
     e.preventDefault()
     console.log('[Frontend] Topic filter submitted:', topicFilter)
-    fetchEvents()
+    fetchEvents(false, 0)
   }
 
   const formatStructured = (structured) => {
@@ -139,7 +236,7 @@ function App() {
       {/* Banner */}
       <header className="banner">
         <div className="banner-content">
-          <h1>Control Hub</h1>
+          <h1 className="banner-title">SN7001</h1>
           <div className="banner-status">
             <span className={`status-indicator ${database === 'clickhouse' ? 'active' : ''}`}>
               ClickHouse
@@ -246,7 +343,7 @@ function App() {
               </label>
             </div>
 
-            <button onClick={fetchEvents} className="refresh-button" disabled={loading}>
+            <button onClick={() => fetchEvents(false, 0)} className="refresh-button" disabled={loading}>
               {loading ? 'Loading...' : 'Refresh'}
             </button>
           </div>
@@ -259,7 +356,7 @@ function App() {
           )}
 
           {/* Events Table */}
-          <div className="events-container">
+          <div className="events-container" ref={eventsContainerRef}>
             {loading ? (
               <div className="loading">Loading...</div>
             ) : events.length === 0 ? (
@@ -294,6 +391,16 @@ function App() {
                     ))}
                   </tbody>
                 </table>
+                {loadingMore && (
+                  <div className="loading-more">
+                    Loading more events...
+                  </div>
+                )}
+                {!hasMore && events.length > 0 && (
+                  <div className="no-more-data">
+                    No more events to load
+                  </div>
+                )}
               </div>
             )}
           </div>
